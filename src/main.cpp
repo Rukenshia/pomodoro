@@ -16,6 +16,7 @@
 #include "icon_provider.h"
 #include "anniversary.h"
 #include "preferences_manager.h"
+#include "secondary_stats.h"
 
 #if STRINGS_TEST
 #include <sstream>
@@ -81,6 +82,11 @@ void setupEncoder()
 
 Timer timer(display);
 
+#ifdef EPD2_ENABLE
+// 副屏实例。宏没开时这个符号根本不存在，下面的接线也一并消失。
+SecondaryStats secondaryStats;
+#endif
+
 void setup()
 {
   pinMode(2, OUTPUT);
@@ -102,6 +108,13 @@ void setup()
   // Initialize the display
   display.init(115200, true, 2, false);
   display.setRotation(0);
+
+#ifdef EPD2_ENABLE
+  // 副屏：主屏上面刚做完整屏复位，共用 RST 的副屏不再重复复位（否则会把
+  // 主屏刚初始化的面板又拽回上电态）。初始化完把统计卡挂到定时器上。
+  secondaryStats.begin();
+  timer.setSink(&secondaryStats);
+#endif
 
   // Load LPE mode setting from checkbox
   IconProvider::getInstance()->setLpeMode(pref_getCheckbox("lpe", true));
