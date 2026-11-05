@@ -90,8 +90,14 @@ private:
     unsigned long lastRedrawTime;
     unsigned long lastPauseRedrawTime;
     bool lastPauseState;
-    static const unsigned long REDRAW_INTERVAL_DEFAULT = 5000;                   // ms
-    static const unsigned long REDRAW_INTERVAL_FAST = 1000;                      // ms
+    static const unsigned long REDRAW_INTERVAL_DEFAULT = 5000; // ms
+#ifdef REFRESH_MINUTE_ONLY
+    // 屏幕上没有秒位，每秒重画一次只是白耗电池。60s 一次刚好能看到分钟跳变：
+    // 一次 45 分钟的专注从约 2700 次局刷降到 45 次。
+    static const unsigned long REDRAW_INTERVAL_FAST = 60000; // ms
+#else
+    static const unsigned long REDRAW_INTERVAL_FAST = 1000; // ms
+#endif
     static const unsigned long RUNNING_MESSAGE_REFRESH_INTERVAL = 5 * 60 * 1000; // ms
     unsigned long redrawInterval = REDRAW_INTERVAL_DEFAULT;
 
