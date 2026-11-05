@@ -17,6 +17,8 @@
 #include "led.h"
 #include "button.h"
 #include "statistics.h"
+#include "timer_snapshot.h"
+#include "secondary_sink.h"
 
 class Preset
 {
@@ -95,6 +97,9 @@ private:
 
     bool showSpeechBubble = true;
 
+    // 副屏出口。为空时（单屏固件的默认情况）整个副屏逻辑不产生任何调用。
+    SecondarySink *sink = nullptr;
+
     void drawWaitingForConfirmation();
     void drawPresetSelection();
     void drawPartialPresetSelection();
@@ -127,6 +132,12 @@ public:
     void loop(volatile int *encoderCount);
     TimerState getState();
     bool checkAndClearButtonPress();
+
+    // 接一块（或多块）副屏。传 nullptr 即摘掉。
+    void setSink(SecondarySink *s) { sink = s; }
+
+    // 只读快照：副屏据此渲染，不直接读 Timer 的私有字段，也不反过来改状态。
+    TimerSnapshot snapshot() const;
 };
 
 #endif
