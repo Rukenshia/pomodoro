@@ -416,15 +416,84 @@ void Timer::loop(volatile int *encoderCount)
             display.display(true);
         }
 
+        const bool wasFullRedraw = needsFullRedraw;
+
         menuNeedsRedraw = false;
         needsRedraw = false;
         needsFullRedraw = false;
         lastRedrawTime = millis();
         Serial.printf("Timer::loop: display update took %d ms\n", millis() - start);
+
+        // 主屏刚画完，此刻把同一份状态交给副屏。放在刷新之后而不是 loop 开头，
+        // 是为了让两块屏显示的永远是同一个瞬间的计时值——否则副屏会比主屏
+        // 早一个循环，暂停时会看到两块屏差一秒。
+        if (sink)
+        {
+            sink->onTimerSnapshot(snapshot(), wasFullRedraw);
+        }
     }
 }
 
 TimerState Timer::getState()
 {
     return state;
+}
+
+TimerSnapshot Timer::snapshot() const
+{
+    TimerSnapshot s;
+
+    s.presetName = currentPreset ? currentPreset->getName() : "";
+    s.focusDurationMs = currentPreset ? currentPreset->getDuration() : 0;
+    s.cycleTotal = currentPreset ? currentPreset->getLongPauseAfter() : 4;
+    s.completedCycles = cycles;
+    s.isLongBreak = isLongBreak;
+    s.breakDurationMs = currentBreakDuration
+                            ? currentBreakDuration
+                            : (currentPreset ? currentPreset->getPauseDuration() : 0);
+
+    const bool onBreak = (state == TimerState::RunningBreak ||
+                          state == TimerState::UserInitiatedBreakPause ||
+                          state == TimerState::WaitingConfirmEndOfBreak);
+
+    if (state == TimerState::SelectingPreset || state == TimerState::Stopped)
+    {
+        s.phase = TimerPhase::Idle;
+        s.runState = TimerRunState::Idle;
+    }
+    else
+    {
+        s.phase = onBreak ? TimerPhase::Break : TimerPhase::Focus;
+
+        switch (state)
+        {
+        case TimerState::Running:
+        case TimerState::RunningBreak:
+            s.runState = TimerRunState::Running;
+            break;
+        case TimerState::UserInitiatedPause:
+        case TimerState::UserInitiatedBreakPause:
+            s.runState = TimerRunState::Paused;
+            break;
+        case TimerState::WaitingConfirmStartOfBreak:
+        case TimerState::WaitingConfirmEndOfBreak:
+            s.runState = TimerRunState::Finished;
+            break;
+        default:
+            s.runState = TimerRunState::Idle;
+            break;
+        }
+    }
+
+    s.durationMs = onBreak ? s.breakDurationMs : s.focusDurationMs;
+    s.elapsedMs = elapsed;
+    s.remainingMs = s.durationMs > s.elapsedMs ? s.durationMs - s.elapsedMs : 0;
+    s.overdueMs = s.elapsedMs > s.durationMs ? s.elapsedMs - s.durationMs : 0;
+
+    const unsigned int setTotal = s.cycleTotal ? s.cycleTotal : 4;
+    s.cycleIndex = onBreak
+                       ? ((cycles % setTotal == 0) ? setTotal : cycles % setTotal)
+                       : (cycles % setTotal) + 1;
+
+    return s;
 }

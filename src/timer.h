@@ -17,6 +17,8 @@
 #include "led.h"
 #include "button.h"
 #include "statistics.h"
+#include "timer_snapshot.h"
+#include "secondary_sink.h"
 
 class Preset
 {
@@ -88,12 +90,21 @@ private:
     unsigned long lastRedrawTime;
     unsigned long lastPauseRedrawTime;
     bool lastPauseState;
-    static const unsigned long REDRAW_INTERVAL_DEFAULT = 5000;                   // ms
-    static const unsigned long REDRAW_INTERVAL_FAST = 1000;                      // ms
+    static const unsigned long REDRAW_INTERVAL_DEFAULT = 5000; // ms
+#ifdef REFRESH_MINUTE_ONLY
+    // 屏幕上没有秒位，每秒重画一次只是白耗电池。60s 一次刚好能看到分钟跳变：
+    // 一次 45 分钟的专注从约 2700 次局刷降到 45 次。
+    static const unsigned long REDRAW_INTERVAL_FAST = 60000; // ms
+#else
+    static const unsigned long REDRAW_INTERVAL_FAST = 1000; // ms
+#endif
     static const unsigned long RUNNING_MESSAGE_REFRESH_INTERVAL = 5 * 60 * 1000; // ms
     unsigned long redrawInterval = REDRAW_INTERVAL_DEFAULT;
 
     bool showSpeechBubble = true;
+
+    // 副屏出口。为空时（单屏固件的默认情况）整个副屏逻辑不产生任何调用。
+    SecondarySink *sink = nullptr;
 
     void drawWaitingForConfirmation();
     void drawPresetSelection();
@@ -127,6 +138,12 @@ public:
     void loop(volatile int *encoderCount);
     TimerState getState();
     bool checkAndClearButtonPress();
+
+    // 接一块（或多块）副屏。传 nullptr 即摘掉。
+    void setSink(SecondarySink *s) { sink = s; }
+
+    // 只读快照：副屏据此渲染，不直接读 Timer 的私有字段，也不反过来改状态。
+    TimerSnapshot snapshot() const;
 };
 
 #endif
